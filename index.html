@@ -1,0 +1,325 @@
+<html >
+
+    <head>
+        <meta charset="utf-8">
+        <meta name=viewport content="width=device-width,user-scalable=no,initial-scale=1,maximum-scale=1,minimum-scale=1">
+        <title>China Map</title>
+        <!-- Bootstrap -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+
+        <style>
+			body {
+				background-color: white;
+				font-family: Helvetica, Arial, sans-serif;
+			}
+
+			h1 {
+				font-size: 24px;
+				margin: 0;
+			}
+
+			p {
+				font-size: 14px;
+				margin: 10px 0 0 0;
+			}
+
+			path {
+				stroke: #555555;
+				stroke-width: .5px;
+
+			}
+
+			.legendLinear text {
+			    font-size: 9px;
+			}
+
+      .tooltipMine{
+        position: absolute;
+        z-index: 10;
+        height: auto;
+        padding: 5px 10px;
+        font-weight: 700;
+        background-color: rgba(255, 255, 255, 0.7);
+      }
+      .tooltipMine p {
+        margin: 0;
+        line-height: 20px;
+        color: black;
+        font-size: 14px;
+      }
+      circle, path:hover {
+        cursor: pointer;
+      }
+      .hideMe{
+          display: none;
+      }
+      #date p{
+        font-size: 22px;
+      }
+
+        </style>
+    </head>
+
+    <body>
+    <div class="container" style="margin-top:50px;">
+      <div class="row">
+        <h1>中国非洲猪瘟疫情持续爆发</h1>
+      </div>
+      <div class="row">
+        <div class="col-md-1">
+          <div class="legend1" style="position: absolute; top:50px;; left:30%; height:75px;width:150px;">
+            <img src="data/legend1.svg" alt="">
+          </div>
+          <div class="legend2" style="position: absolute; top:150px;; left:30%; height:100px;width:150px;">
+            <img src="data/legend2.svg" alt="">
+          </div>
+          <div style="height: 450px;">
+
+          </div>
+          <div  id="date" style="position: absolute; top:350px; width: 300px;">
+
+          </div>
+
+                    <h4 id="hint"  style="position: absolute; top:400px; width: 300px;">鼠标悬浮到圆圈上可查看详细信息</h4>
+          <button type="button" name="button" id="letsRedraw" class="hideMe btn btn-default btn-lg">重新看一遍</button>
+
+        </div>
+        <div class="col-md-9">
+          <div id="china"></div>
+        </div>
+        <div class="col-md-1">
+          <div class="row" style="height:400px;">
+
+          </div>
+          <div class="row">
+            <img src="data/nan_hai.svg" alt="">
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- d3线上lib -->
+    <script type="text/javascript" src="https://d3js.org/d3.v5.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
+
+
+    <!-- jquery线上lib -->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+
+    <!-- 为了做到完美的sleep，第一次使用d3v5 -->
+    <script type="text/javascript">
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function redraw(){
+      //定义基本变量
+      const width = 1000;
+      const height = 500;
+      const svg = d3.select("#china")
+                           .append("svg")
+      const colorPots = d3.rgb(78, 78, 78);
+      var tooltipMine = d3.select("body")
+                      .append("div")
+                      .attr("class", "tooltipMine");
+      const colorScale =  d3.scaleLinear().range(["#f7f2f2", "#4a1313"]);
+
+      //province  g
+      const province_g = svg.append("g").attr("id", "province_g");
+      //district g
+      const district_g = svg.append("g").attr("id", "district_g")
+      //data Loading & processing
+      const china = await d3.json("data/china_diaoyudao.json")
+      const parseDate = d3.timeParse("%Y/%m/%d");
+      for (var i = 0; i < china.features.length; i++) {
+        var NAME = china.features[i].properties.name;
+      }
+      console.log(NAME);
+      const data = await d3.csv("data/data.csv", function(d){
+        if (d.death === "1（野猪）") {
+          d.death = 1;
+        }
+        d.date = parseDate(d["time"]);
+        d.longitude = +d.longitude;
+        d.latitude = + d.latitude;
+        d.illness = +d.illness;
+        d.death = +d.death;
+        d.dispose = +d.dispose;
+        return d;
+      });
+      const province_data = await d3.json("data/province.json")
+      const provinceD = province_data.dates;
+      // // const littleTest = parseDate(provinceD["date"]);
+      // console.log(provinceD["date"]);
+      console.log(province_data);
+      // var districtByName = d3.map();
+      //geo-things
+      const projection = d3.geoMercator();
+      const geoGenerator = d3.geoPath()
+  		                  .projection(projection);
+      const dates = Array(...new Set(data.map(d => d.date.getTime())));
+      let step = dates.length - 1;
+      let step_date = dates[step];
+      let first_play = true;
+      var formatTime = d3.timeFormat("%Y年%m月%d日");
+      colorScale.domain([1,225]);
+      //draw things
+      // const drawing = async function(){
+        svg.attr("width", width)
+        .attr("height", height)
+        //draw maps
+        console.log(china.features);
+        projection.fitSize([1000, 500], china);
+
+
+      //drawCircles
+      function drawCirclesAt(cur_date){
+
+        // d3.selectAll(".province-infected").remove()
+        // d3.selectAll(".city-infected").remove()
+        for(const d of data){
+          // console.log(d);
+          const computed_radius = Math.max(Math.sqrt(d.death),4)
+
+          if(d3.timeDay(d.date).getTime() === d3.timeDay(cur_date).getTime()){
+
+            const circle = d3.select("#district_g")
+                            .append("circle")
+                            .datum(d)
+                            .attr("class", "city-infected")
+                            .attr("id", "city-infected_" + d.number)
+                            .attr("cx", function(d){ return projection([d.longitude, d.latitude])[0]} )
+                            .attr("cy", function(d){ return projection([d.longitude, d.latitude])[1]})
+                            .attr("fill-opacity", 0.6)
+                            .attr("stroke-opacity", 1)
+                            .attr("stroke-width", 0)
+                            .attr("fill", "#ff0000")
+                            .attr("r", first_play ? 0: computed_radius);//透露着机智，真强啊
+            if(first_play){
+              circle.transition()
+                  .duration(300)
+                  .attr("fill-opacity", 0.6)
+                  .attr("stroke-opacity", 0.5)
+                  .attr("stroke-width", 0)
+                  .attr("fill", colorPots)
+                  .attr("r", computed_radius);
+            }
+          }
+          else if (d3.timeDay(d.date).getTime() < d3.timeDay(cur_date).getTime()) {
+            const circle = d3.selectAll("#city-infected_" + d.number)
+            .transition()
+            .duration(300)
+            .attr("fill-opacity", 0.6)
+            .attr("stroke-opacity", 0.8)
+            .attr("stroke-width", 0)
+            .attr("fill", colorPots)
+            .attr("r", computed_radius);
+          }
+          else {
+            d3.selectAll("#city-infected_" + d.number).remove();
+          }
+        }
+        addInteraction()
+      }
+
+      function drawProvinceAt(cur_date){
+
+      for (const d of provinceD) {
+        const parseTime = parseDate(d.date);
+        var valueTest = d.value;
+        if (d3.timeDay(parseTime).getTime() === d3.timeDay(cur_date).getTime()) {
+      province_g.selectAll("path").remove();
+          // console.log(d.value[3]);
+          var districtByName = d3.map()
+          for (i = 0; i < 34; i++) {
+          // var b = d.value[3].province
+          // var a = d.value[3].amount
+          // var myArray = [a,b];
+          // districtByName.set(d.value[3].province , d.value[3]);
+          districtByName.set(d.value[i].province, d.value[i].amount)
+          //
+          }
+          // console.log(myArray);
+          console.log(districtByName);
+
+          var map = province_g.selectAll("path").data(china.features);
+
+          map.enter()
+           .append("path")
+           .attr("class", "testClass")
+           .attr("d", geoGenerator)
+           .transition()
+           .duration(300)
+           .attr("fill", function(d){
+             var district = districtByName.get(d.properties.name);
+             // console.log(district);
+             if(district && district.dispose!= 0){
+               // console.log(colorScale(Math.sqrt(district.dispose)));
+                      return colorScale(Math.sqrt(district.dispose));
+                }
+              else  {
+                return 'rgb(246, 246, 246)';
+              }
+              })
+
+
+
+
+        }
+      }
+
+      }
+
+
+      async function drawing(){
+        const start_date = dates[0]
+        const end_date = dates[dates.length - 1]
+        const days = d3.timeDay.range(start_date  ,end_date + 1, 1)
+        for (const day of days) {
+            drawProvinceAt(day)
+            drawCirclesAt(day)
+            await sleep(100)
+            d3.select("#date").html("<p>"+ formatTime(day) +"</p>");
+        }
+        d3.select("#letsRedraw").classed("hideMe", false)
+
+
+        addInteraction()
+      }
+      function addInteraction(){
+        svg.selectAll(".city-infected").on("mouseover", function(d){
+          d3.select(this).transition().attr("fill","rgb(107, 0, 0)").attr("fill-opacity", 1);
+          tooltipMine.style("display", null)
+                .html("<p>"+ formatTime(d.date)+
+                "<br>地点： "+d.province +" " +d.location+
+                "<br>发病数（头）： "+d.illness +
+                "<br>死亡数（头）："+ d.death +
+                "<br>处理（头）："+ d.dispose +"</p>");
+        })
+        .on("mousemove", function(d){
+          tooltipMine
+            .style("top", (d3.event.pageY - 10) + "px" )
+            .style("left", (d3.event.pageX + 10) + "px");
+        })
+        .on("mouseout", function(d){
+          d3.select(this)
+            .transition()
+            .attr("fill", colorPots)
+            .attr("fill-opacity", 0.6);
+          tooltipMine.style("display","none");
+        })
+      }
+      drawing();
+      d3.select("#letsRedraw").on("click", drawing);
+
+
+      // }//end of drawing
+
+    }//end of redraw
+  redraw()
+
+    </script>
+
+</html>
